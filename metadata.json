@@ -1,0 +1,6 @@
+{
+  "name": "MusicaEuropa - Europäische Musikgeschichte",
+  "description": "Interaktive Lern- und Testplattform für Studierende der europäischen Musikgeschichte: Epochen, Formenlehre, Hörbeispiele, KI-Videobelebung historischer Porträts und Prüfungssimulation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
