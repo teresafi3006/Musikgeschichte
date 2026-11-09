@@ -1,18 +1,1488 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MusicaEuropa - Europäische Musikgeschichte</title>
-    <meta name="description" content="Interaktive Lern- und Testplattform für Studierende der europäischen Musikgeschichte: Epochen, Formenlehre, Hörbeispiele, KI-Videobelebung historischer Porträts und Prüfungssimulation." />
-    <meta property="og:title" content="MusicaEuropa - Europäische Musikgeschichte" />
-    <meta property="og:description" content="Interaktive Lern- und Testplattform für Studierende der europäischen Musikgeschichte: Epochen, Formenlehre, Hörbeispiele, KI-Videobelebung historischer Porträts und Prüfungssimulation." />
-    <meta property="og:type" content="website" />
-    <meta name="twitter:card" content="summary_large_image" />
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MusicaEuropa – Europäische Musikgeschichte</title>
+  <meta name="description" content="Interaktive Lern- und Testplattform für Studierende der europäischen Musikgeschichte: Epochen, Formenlehre, Hörbeispiele, Glossar und Prüfungssimulation." />
 
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            serif: ['Georgia', 'Cambria', 'serif'],
+          },
+          colors: {
+            stone: {
+              850: '#201e1b',
+              950: '#0c0a09',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- React 18, ReactDOM & Babel für JSX im Browser -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    /* Sanfte Bildlauf-Animation */
+    html { scroll-behavior: smooth; }
+    /* Scrollbar Styling */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #0c0a09; }
+    ::-webkit-scrollbar-thumb { background: #292524; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #44403c; }
+  </style>
+</head>
+<body class="bg-stone-950 text-stone-100 min-h-screen font-sans selection:bg-amber-600 selection:text-stone-950">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo, useEffect, useRef } = React;
+
+    // ==========================================
+    // 1. WEB AUDIO API SYNTHESIZER (NATIV IM BROWSER)
+    // ==========================================
+    class AudioSynthesizerEngine {
+      constructor() {
+        this.ctx = null;
+        this.isPlaying = false;
+        this.activeNodes = [];
+      }
+
+      initContext() {
+        if (!this.ctx) {
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          this.ctx = new AudioContextClass();
+        }
+        if (this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+
+      stopAll() {
+        this.isPlaying = false;
+        this.activeNodes.forEach(node => {
+          try {
+            if ('stop' in node) node.stop();
+            node.disconnect();
+          } catch (e) {}
+        });
+        this.activeNodes = [];
+      }
+
+      noteToFreq(note) {
+        const notes = {
+          'C3': 130.81, 'D3': 146.83, 'Eb3': 155.56, 'E3': 164.81, 'F3': 174.61, 'F#3': 185.00,
+          'G3': 196.00, 'Ab3': 207.65, 'A3': 220.00, 'Bb3': 233.08, 'B3': 246.94,
+          'C4': 261.63, 'C#4': 277.18, 'D4': 293.66, 'Eb4': 311.13, 'E4': 329.63, 'F4': 349.23,
+          'F#4': 369.99, 'G4': 392.00, 'G#4': 415.30, 'Ab4': 415.30, 'A4': 440.00, 'Bb4': 466.16,
+          'B4': 493.88, 'C5': 523.25, 'D5': 587.33, 'E5': 659.25, 'F5': 698.46, 'G5': 783.99
+        };
+        return notes[note] || 440;
+      }
+
+      // Gregorianischer Choral (Dorisch)
+      playGregorianChant(onComplete) {
+        this.stopAll();
+        this.initContext();
+        if (!this.ctx) return;
+        const ctx = this.ctx;
+        this.isPlaying = true;
+
+        const melody = [
+          { note: 'D4', dur: 0.8 }, { note: 'F4', dur: 0.6 }, { note: 'G4', dur: 0.7 },
+          { note: 'A4', dur: 1.0 }, { note: 'C5', dur: 0.6 }, { note: 'B4', dur: 0.5 },
+          { note: 'A4', dur: 0.8 }, { note: 'G4', dur: 0.7 }, { note: 'F4', dur: 0.6 },
+          { note: 'E4', dur: 0.7 }, { note: 'D4', dur: 1.6 },
+        ];
+
+        // Orgel/Bordun Drone
+        const droneOsc = ctx.createOscillator();
+        const droneGain = ctx.createGain();
+        droneOsc.type = 'triangle';
+        droneOsc.frequency.setValueAtTime(this.noteToFreq('D3'), ctx.currentTime);
+        droneGain.gain.setValueAtTime(0.08, ctx.currentTime);
+        droneGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 10);
+        droneOsc.connect(droneGain);
+        droneGain.connect(ctx.destination);
+        droneOsc.start();
+        droneOsc.stop(ctx.currentTime + 10);
+        this.activeNodes.push(droneOsc, droneGain);
+
+        let time = ctx.currentTime + 0.1;
+        for (const item of melody) {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          const filter = ctx.createBiquadFilter();
+          filter.type = 'bandpass';
+          filter.frequency.setValueAtTime(700, time);
+          filter.Q.setValueAtTime(2.5, time);
+
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(this.noteToFreq(item.note), time);
+
+          gain.gain.setValueAtTime(0.001, time);
+          gain.gain.linearRampToValueAtTime(0.25, time + 0.15);
+          gain.gain.exponentialRampToValueAtTime(0.001, time + item.dur);
+
+          osc.connect(filter);
+          filter.connect(gain);
+          gain.connect(ctx.destination);
+
+          osc.start(time);
+          osc.stop(time + item.dur);
+          this.activeNodes.push(osc, gain);
+          time += item.dur * 0.9;
+        }
+
+        setTimeout(() => {
+          if (this.isPlaying) {
+            this.isPlaying = false;
+            onComplete && onComplete();
+          }
+        }, Math.max(100, (time - ctx.currentTime) * 1000));
+      }
+
+      // Barock: Basso Continuo & Quintfallsequenz (Cembalo-Klangfarbe)
+      playBaroqueContinuo(onComplete) {
+        this.stopAll();
+        this.initContext();
+        if (!this.ctx) return;
+        const ctx = this.ctx;
+        this.isPlaying = true;
+
+        const sequence = [
+          { bass: 'A3', treble: ['C5', 'E5', 'A5'], dur: 0.8 },
+          { bass: 'D3', treble: ['D5', 'F5', 'A5'], dur: 0.8 },
+          { bass: 'G3', treble: ['B4', 'D5', 'G5'], dur: 0.8 },
+          { bass: 'C3', treble: ['C5', 'E5', 'G5'], dur: 0.8 },
+          { bass: 'F3', treble: ['A4', 'C5', 'F5'], dur: 0.8 },
+          { bass: 'B3', treble: ['G#4', 'D5', 'F5'], dur: 0.8 },
+          { bass: 'E3', treble: ['G#4', 'B4', 'E5'], dur: 1.0 },
+          { bass: 'A3', treble: ['A4', 'C5', 'E5'], dur: 1.5 },
+        ];
+
+        let time = ctx.currentTime + 0.1;
+        for (const step of sequence) {
+          const bassOsc = ctx.createOscillator();
+          const bassGain = ctx.createGain();
+          bassOsc.type = 'sawtooth';
+          bassOsc.frequency.setValueAtTime(this.noteToFreq(step.bass), time);
+          bassGain.gain.setValueAtTime(0.18, time);
+          bassGain.gain.exponentialRampToValueAtTime(0.001, time + step.dur * 0.9);
+          bassOsc.connect(bassGain);
+          bassGain.connect(ctx.destination);
+          bassOsc.start(time);
+          bassOsc.stop(time + step.dur);
+          this.activeNodes.push(bassOsc, bassGain);
+
+          step.treble.forEach((tNote, idx) => {
+            const arpeggioDelay = idx * 0.04;
+            const harpsOsc = ctx.createOscillator();
+            const harpsGain = ctx.createGain();
+            harpsOsc.type = 'square';
+            harpsOsc.frequency.setValueAtTime(this.noteToFreq(tNote), time + arpeggioDelay);
+
+            harpsGain.gain.setValueAtTime(0.09, time + arpeggioDelay);
+            harpsGain.gain.exponentialRampToValueAtTime(0.001, time + arpeggioDelay + 0.6);
+
+            harpsOsc.connect(harpsGain);
+            harpsGain.connect(ctx.destination);
+            harpsOsc.start(time + arpeggioDelay);
+            harpsOsc.stop(time + arpeggioDelay + 0.6);
+            this.activeNodes.push(harpsOsc, harpsGain);
+          });
+          time += step.dur;
+        }
+
+        setTimeout(() => {
+          if (this.isPlaying) {
+            this.isPlaying = false;
+            onComplete && onComplete();
+          }
+        }, Math.max(100, (time - ctx.currentTime) * 1000));
+      }
+
+      // Wiener Klassik: Sonatenhauptthema mit Alberti-Bässen
+      playClassicalSonata(onComplete) {
+        this.stopAll();
+        this.initContext();
+        if (!this.ctx) return;
+        const ctx = this.ctx;
+        this.isPlaying = true;
+
+        const melody = [
+          { note: 'C5', time: 0, dur: 1.0 }, { note: 'E5', time: 1.0, dur: 0.5 },
+          { note: 'G5', time: 1.5, dur: 0.5 }, { note: 'B4', time: 2.0, dur: 0.75 },
+          { note: 'C5', time: 2.75, dur: 0.25 }, { note: 'D5', time: 3.0, dur: 0.5 },
+          { note: 'C5', time: 3.5, dur: 1.0 }, { note: 'A4', time: 4.5, dur: 0.5 },
+          { note: 'F5', time: 5.0, dur: 0.5 }, { note: 'D5', time: 5.5, dur: 0.5 },
+          { note: 'B4', time: 6.0, dur: 0.5 }, { note: 'C5', time: 6.5, dur: 1.5 },
+        ];
+
+        const albertiNotes = [
+          'C3', 'G3', 'E3', 'G3', 'C3', 'G3', 'E3', 'G3',
+          'C3', 'G3', 'E3', 'G3', 'C3', 'G3', 'E3', 'G3',
+          'F3', 'C4', 'A3', 'C4', 'G3', 'D4', 'B3', 'D4',
+          'C3', 'G3', 'E3', 'G3', 'C3'
+        ];
+
+        const startTime = ctx.currentTime + 0.1;
+        for (const item of melody) {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(this.noteToFreq(item.note), startTime + item.time);
+          gain.gain.setValueAtTime(0.18, startTime + item.time);
+          gain.gain.exponentialRampToValueAtTime(0.001, startTime + item.time + item.dur);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(startTime + item.time);
+          osc.stop(startTime + item.time + item.dur);
+          this.activeNodes.push(osc, gain);
+        }
+
+        let bTime = 0;
+        for (const note of albertiNotes) {
+          const bOsc = ctx.createOscillator();
+          const bGain = ctx.createGain();
+          bOsc.type = 'sine';
+          bOsc.frequency.setValueAtTime(this.noteToFreq(note), startTime + bTime);
+          bGain.gain.setValueAtTime(0.08, startTime + bTime);
+          bGain.gain.exponentialRampToValueAtTime(0.001, startTime + bTime + 0.28);
+          bOsc.connect(bGain);
+          bGain.connect(ctx.destination);
+          bOsc.start(startTime + bTime);
+          bOsc.stop(startTime + bTime + 0.28);
+          this.activeNodes.push(bOsc, bGain);
+          bTime += 0.28;
+        }
+
+        setTimeout(() => {
+          if (this.isPlaying) {
+            this.isPlaying = false;
+            onComplete && onComplete();
+          }
+        }, 8500);
+      }
+
+      // Romantik: Der Tristan-Akkord (F - H - D# - G#)
+      playRomanticTristan(onComplete) {
+        this.stopAll();
+        this.initContext();
+        if (!this.ctx) return;
+        const ctx = this.ctx;
+        this.isPlaying = true;
+        const startTime = ctx.currentTime + 0.1;
+
+        // Cello Auftakt
+        const upbeat = [
+          { note: 'A3', time: 0, dur: 1.0 },
+          { note: 'F3', time: 1.0, dur: 0.8 },
+          { note: 'E3', time: 1.8, dur: 0.8 },
+        ];
+        upbeat.forEach(u => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(this.noteToFreq(u.note), startTime + u.time);
+          gain.gain.setValueAtTime(0.12, startTime + u.time);
+          gain.gain.exponentialRampToValueAtTime(0.001, startTime + u.time + u.dur);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(startTime + u.time);
+          osc.stop(startTime + u.time + u.dur);
+          this.activeNodes.push(osc, gain);
+        });
+
+        // Tristan-Akkord F3 + B3 + D#4 + G#4
+        ['F3', 'B3', 'D#4', 'G#4'].forEach(note => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(this.noteToFreq(note), startTime + 2.8);
+          gain.gain.setValueAtTime(0.14, startTime + 2.8);
+          gain.gain.exponentialRampToValueAtTime(0.005, startTime + 5.5);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(startTime + 2.8);
+          osc.stop(startTime + 5.5);
+          this.activeNodes.push(osc, gain);
+        });
+
+        // Chromatische Seufzerauflösung G# -> A
+        const sighOsc = ctx.createOscillator();
+        const sighGain = ctx.createGain();
+        sighOsc.type = 'triangle';
+        sighOsc.frequency.setValueAtTime(this.noteToFreq('A4'), startTime + 4.2);
+        sighGain.gain.setValueAtTime(0.16, startTime + 4.2);
+        sighGain.gain.exponentialRampToValueAtTime(0.001, startTime + 5.6);
+        sighOsc.connect(sighGain);
+        sighGain.connect(ctx.destination);
+        sighOsc.start(startTime + 4.2);
+        sighOsc.stop(startTime + 5.6);
+        this.activeNodes.push(sighOsc, sighGain);
+
+        // Auflösung nach E7 Dominante
+        ['E3', 'G#3', 'D4', 'E4'].forEach(note => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(this.noteToFreq(note), startTime + 5.6);
+          gain.gain.setValueAtTime(0.15, startTime + 5.6);
+          gain.gain.exponentialRampToValueAtTime(0.001, startTime + 9.0);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(startTime + 5.6);
+          osc.stop(startTime + 9.0);
+          this.activeNodes.push(osc, gain);
+        });
+
+        setTimeout(() => {
+          if (this.isPlaying) {
+            this.isPlaying = false;
+            onComplete && onComplete();
+          }
+        }, 9500);
+      }
+
+      // Moderne: Arnold Schönberg 12-Ton-Reihe
+      playTwelveToneRow(rowType, onComplete) {
+        this.stopAll();
+        this.initContext();
+        if (!this.ctx) return;
+        const ctx = this.ctx;
+        this.isPlaying = true;
+
+        const originalNotes = ['C4', 'C#4', 'E4', 'D#4', 'G4', 'F#4', 'F4', 'A4', 'Ab4', 'Bb4', 'B4', 'D4'];
+        let sequence = [...originalNotes];
+        if (rowType === 'retrograde') sequence = [...originalNotes].reverse();
+        else if (rowType === 'inversion') sequence = ['C4', 'B3', 'Ab3', 'A3', 'F3', 'F#3', 'G3', 'Eb3', 'E3', 'D3', 'C#3', 'Bb3'];
+        else if (rowType === 'retrogradeInversion') sequence = ['C4', 'B3', 'Ab3', 'A3', 'F3', 'F#3', 'G3', 'Eb3', 'E3', 'D3', 'C#3', 'Bb3'].reverse();
+
+        const startTime = ctx.currentTime + 0.1;
+        let time = startTime;
+        sequence.forEach((note, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = idx % 2 === 0 ? 'sine' : 'triangle';
+          osc.frequency.setValueAtTime(this.noteToFreq(note), time);
+          gain.gain.setValueAtTime(0.001, time);
+          gain.gain.linearRampToValueAtTime(0.2, time + 0.05);
+          gain.gain.exponentialRampToValueAtTime(0.001, time + 0.55);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(time);
+          osc.stop(time + 0.55);
+          this.activeNodes.push(osc, gain);
+          time += 0.55;
+        });
+
+        setTimeout(() => {
+          if (this.isPlaying) {
+            this.isPlaying = false;
+            onComplete && onComplete();
+          }
+        }, Math.max(100, (time - ctx.currentTime) * 1000));
+      }
+    }
+
+    const audioSynth = new AudioSynthesizerEngine();
+
+    // ==========================================
+    // 2. DATENBANK (EPOCHEN, KOMPONISTEN, GLOSSAR, QUIZ)
+    // ==========================================
+    const EPOCHS = [
+      {
+        id: 'mittelalter',
+        name: 'Mittelalter',
+        period: 'ca. 500 – 1400',
+        centuryRange: '6. – 14. Jahrhundert',
+        tagline: 'Vom einstimmigen Choral zur ersten Mehrstimmigkeit',
+        philosophicalContext: 'Theozentrisches Weltbild. Musik als Abbild göttlicher Schöpfungsharmonie (Musica mundana, humana, instrumentalis). Übergang von oraler Überlieferung zu Neumen und Mensuralnotation.',
+        coreCharacteristics: [
+          'Gregorianischer Choral: Lateinischer, unbegleiteter liturgischer Gesang',
+          'Kirchentonarten (Modi: Dorisch, Phrygisch, Lydisch, Mixolydisch)',
+          'Entwicklung der Mehrstimmigkeit (Organum, Notre-Dame-Schule)',
+          'Ars Nova im 14. Jh.: Mensuralrhythmik und Isorhythmie (Machaut)',
+        ],
+        musicalForms: ['Gregorianischer Choral', 'Organum', 'Isorhythmische Motette', 'Minnesang'],
+        keyComposers: ['Hildegard von Bingen (1098–1179)', 'Perotin (ca. 1160–1230)', 'Guillaume de Machaut (ca. 1300–1377)'],
+        audioId: 'gregorian'
+      },
+      {
+        id: 'renaissance',
+        name: 'Renaissance',
+        period: 'ca. 1400 – 1600',
+        centuryRange: '15. – 16. Jahrhundert',
+        tagline: 'Die Blüte der Vokalpolyphonie & Humanismus',
+        philosophicalContext: 'Humanismus und Wiederentdeckung antiker Ideale. Terzen- und Sextenharmonik. Erfindung des Notendrucks (Petrucci 1501). Das Konzil von Trient verlangt Textverständlichkeit in der Sakralmusik.',
+        coreCharacteristics: [
+          'Vollstimmige Vokalpolyphonie (4–6 Stimmen)',
+          'Prinzip der Durchimitation: Motive wandern durch alle Stimmen',
+          'Tridentinisches Konzil (1545–1563) & Palestrina-Stil',
+          'Madrigalismen (Wort-Ton-Malerei in weltlichen Madrigalen)',
+        ],
+        musicalForms: ['Messe (Cantus-firmus- / Parodiemesse)', 'Motette', 'Madrigal', 'Chanson'],
+        keyComposers: ['Josquin des Prez (ca. 1450–1521)', 'Giovanni Pierluigi da Palestrina (1525–1594)', 'Claudio Monteverdi (Frühwerk)'],
+        audioId: 'renaissance'
+      },
+      {
+        id: 'barock',
+        name: 'Barock',
+        period: 'ca. 1600 – 1750',
+        centuryRange: '17. – Mitte 18. Jahrhundert',
+        tagline: 'Generalbass, Opernerfindung & Monumentaler Kontrapunkt',
+        philosophicalContext: 'Absolutismus, theatralische Inszenierung von Glauben und Macht. Affektenlehre und Entstehung der modernen Dur-Moll-Tonalität. Die Florentiner Camerata begründet die Monodie und die Gattung Oper.',
+        coreCharacteristics: [
+          'Generalbass-Prinzip (Basso continuo): Harmoniegerüst aus Cembalo/Orgel und Cello',
+          'Konzertierendes Prinzip (Stile concertato: Solist vs. Tutti)',
+          'Meisterschaft der Fuge und des Kontrapunkts (J.S. Bach)',
+          'Geburt der Oper um 1600 (Monteverdis L’Orfeo 1607)',
+        ],
+        musicalForms: ['Oper', 'Oratorium & Passion', 'Concerto grosso & Solokonzert', 'Fuge', 'Suite / Partita'],
+        keyComposers: ['Claudio Monteverdi (1567–1643)', 'Antonio Vivaldi (1678–1741)', 'Johann Sebastian Bach (1685–1750)', 'Georg Friedrich Händel (1685–1759)'],
+        audioId: 'baroque'
+      },
+      {
+        id: 'klassik',
+        name: 'Wiener Klassik',
+        period: 'ca. 1750 – 1827',
+        centuryRange: 'Zweite Hälfte 18. – Anfang 19. Jahrhundert',
+        tagline: 'Klarheit, Ausgewogenheit & Die Sonatenhauptsatzform',
+        philosophicalContext: 'Zeitalter der Aufklärung (Kant), bürgerliche Emanzipation. Suche nach Natürlichkeit, Symmetrie und Formvollendung. Das Triumvirat der "Ersten Wiener Schule": Haydn, Mozart, Beethoven.',
+        coreCharacteristics: [
+          'Sonatenhauptsatzform als zentrales dramaturgisches Modell',
+          'Thematisch-motivische Arbeit (z.B. Beethovens 5. Sinfonie)',
+          'Symmetrischer Periodenbau (4 Takte Vordersatz + 4 Takte Nachsatz)',
+          'Emanzipation des Streichquartetts und der 4-sätzigen klassischen Sinfonie',
+        ],
+        musicalForms: ['Klassische Sinfonie', 'Streichquartett', 'Solokonzert mit Doppelexposition', 'Klaviersonate'],
+        keyComposers: ['Joseph Haydn (1732–1809)', 'Wolfgang Amadeus Mozart (1756–1791)', 'Ludwig van Beethoven (1770–1827)'],
+        audioId: 'classic'
+      },
+      {
+        id: 'romantik',
+        name: 'Romantik',
+        period: 'ca. 1820 – 1910',
+        centuryRange: '19. Jahrhundert',
+        tagline: 'Subjektivität, Weltschmerz & Entgrenzung der Harmonik',
+        philosophicalContext: 'Subjektivismus, Naturmystik, Weltschmerz und Sehnsucht nach dem Unendlichen. Streit zwischen Programmmusik (Neudeutsche Schule um Liszt & Wagner) und Absoluter Musik (Brahms).',
+        coreCharacteristics: [
+          'Erweiterung der Harmonik: Dichte Chromatik, schwebende Tonalität (Tristan-Akkord)',
+          'Leitmotivtechnik im Wagnerschen Gesamtkunstwerk',
+          'Aufblühen des romantischen Kunstlieds (Schubert, Schumann)',
+          'Nationale Schulen (Dvořák, Tschaikowski, Grieg)',
+        ],
+        musicalForms: ['Klavier-Miniatur / Charakterstück', 'Romantisches Kunstlied', 'Sinfonische Dichtung', 'Musikdrama', 'Monumentalsinfonie'],
+        keyComposers: ['Franz Schubert (1797–1828)', 'Frédéric Chopin (1810–1849)', 'Robert & Clara Schumann', 'Richard Wagner (1813–1883)', 'Johannes Brahms (1833–1897)', 'Gustav Mahler (1860–1911)'],
+        audioId: 'romantic'
+      },
+      {
+        id: 'moderne',
+        name: 'Moderne & 20. Jahrhundert',
+        period: 'ab ca. 1900',
+        centuryRange: '20. & 21. Jahrhundert',
+        tagline: 'Emanzipation der Dissonanz & Stilpluralismus',
+        philosophicalContext: 'Weltkriege, Relativitätstheorie, Psychoanalyse. Radikaler Bruch mit der traditionellen Dur-Moll-Tonalität. Pluralismus von Neoklassizismus über serielle Musik bis zur Minimal Music.',
+        coreCharacteristics: [
+          'Emanzipation der Dissonanz: Dissonanzen müssen sich nicht auflösen',
+          'Dodekaphonie (Zwölftontechnik nach Arnold Schönberg)',
+          'Impressionismus (Debussy: Ganztonleitern & Pentatonik)',
+          'Rhythmische Revolution (Strawinskys Le Sacre du Printemps)',
+        ],
+        musicalForms: ['Zwölftonkompositionen', 'Klangflächenmusik', 'Neoklassizistische Suiten', 'Minimal Music'],
+        keyComposers: ['Claude Debussy (1862–1918)', 'Arnold Schönberg (1874–1951)', 'Igor Strawinsky (1882–1971)', 'Béla Bartók (1881–1945)', 'Steve Reich (*1936)'],
+        audioId: 'modern'
+      }
+    ];
+
+    const MILESTONES = [
+      { year: 'ca. 600', epoch: 'Mittelalter', title: 'Gregor I. & Kodifizierung des Chorals', desc: 'Papst Gregor I. ordnet die liturgischen Gesänge der römischen Kirche.' },
+      { year: 'ca. 1025', epoch: 'Mittelalter', title: 'Guido von Arezzo: Notenlinien & Solmisation', desc: 'Erfindung des 4-Linien-Systems im Terzabstand und der Tonsilben Ut-Re-Mi-Fa-Sol-La.' },
+      { year: '1198', epoch: 'Mittelalter', title: 'Notre-Dame-Schule: 4-stimmiges Organum', desc: 'Perotin komponiert "Viderunt omnes" – früheste monumentale Mehrstimmigkeit.' },
+      { year: '1501', epoch: 'Renaissance', title: 'Erster Notendruck (Petrucci)', desc: 'Ottaviano Petrucci druckt in Venedig erstmals Noten mit beweglichen Lettern.' },
+      { year: '1562', epoch: 'Renaissance', title: 'Konzil von Trient & Palestrina', desc: 'Forderung nach Textverständlichkeit; Palestrinas Missa Papae Marcelli setzt den Standard.' },
+      { year: '1600/07', epoch: 'Barock', title: 'Geburt der Oper & Monteverdis L’Orfeo', desc: 'Florentiner Camerata begründet die Monodie; Monteverdi vollendet die Gattung Oper in Mantua.' },
+      { year: '1722', epoch: 'Barock', title: 'Bachs Wohltemperiertes Klavier (Teil I)', desc: 'Präludien und Fugen durch alle 24 Tonarten beweisen die wohltemperierte Stimmung.' },
+      { year: '1781', epoch: 'Klassik', title: 'Haydns Streichquartette op. 33', desc: 'Begründung der klassischen thematisch-motivischen Arbeit "auf ganz neue, besondere Art".' },
+      { year: '1804', epoch: 'Klassik', title: 'Beethovens "Eroica" (3. Sinfonie)', desc: 'Sprengung der Formgrenzen zugunsten einer dramatischen, heroischen Großarchitektur.' },
+      { year: '1824', epoch: 'Klassik', title: 'Beethovens 9. Sinfonie mit Chor', desc: 'Erstmals wird die menschliche Stimme (Schillers "Ode an die Freude") in die Sinfonie integriert.' },
+      { year: '1859', epoch: 'Romantik', title: 'Wagners Tristan-Akkord (Tristan und Isolde)', desc: 'Der chromatische Akkord F-H-D#-G# leitet die Auflösung der funktionalen Tonalität ein.' },
+      { year: '1913', epoch: 'Moderne', title: 'Strawinskys "Le Sacre du Printemps" Skandal', desc: 'Archaische Rhythmen und bitonale Ballungen lösen in Paris einen Theaterskandal aus.' },
+      { year: '1923', epoch: 'Moderne', title: 'Schönbergs Dodekaphonie (Zwölftonmethode)', desc: 'Die Methode der Komposition mit zwölf nur aufeinander bezogenen Tönen hebt das tonale Gravitationszentrum auf.' }
+    ];
+
+    const GLOSSARY_TERMS = [
+      {
+        term: 'Alberti-Bass', category: 'technik', categoryLabel: 'Satztechnik', epoch: 'Wiener Klassik',
+        definition: 'Eine stereotype Begleitfigur der Klaviermusik der Klassik, bei der Akkordtöne in der Reihenfolge tief-hoch-mittel-hoch arpeggiert werden.',
+        academicDetails: 'Benannt nach Domenico Alberti. Diente auf dem Hammerflügel dazu, eine flächige harmonische Schwingung zu erzeugen, ohne die melodische Führungsstimme zu überdecken.',
+        examples: ['Mozart: Klaviersonate C-Dur KV 545, 1. Satz', 'Haydn: Klaviersonaten']
+      },
+      {
+        term: 'Basso Continuo (Generalbass)', category: 'technik', categoryLabel: 'Satztechnik', epoch: 'Barock',
+        definition: 'Das fundamentale Kompositions- und Begleitprinzip des Barock: Eine durchlaufende Basslinie mit Ziffern zur Akkordinformation.',
+        academicDetails: 'Besetzt mit Harmonie-Akkordinstrument (Cembalo, Orgel, Laute) und tiefem Streicher/Bläser (Cello, Gambe, Fagott). Daher wird das Barock oft als "Generalbasszeitalter" bezeichnet.',
+        examples: ['J.S. Bach: Brandenburgische Konzerte', 'Monteverdi: L’Orfeo', 'Vivaldi: Vier Jahreszeiten']
+      },
+      {
+        term: 'Cembalo', category: 'instrument', categoryLabel: 'Instrument', epoch: 'Renaissance & Barock',
+        definition: 'Kielklavier, dessen Saiten über Tastenhebel mittels Federkielen (Plektrons) angerissen statt mit Hämmern angeschlagen werden.',
+        academicDetails: 'Erzeugt einen silbrigen, obertonreichen Klang mit Terrassendynamik über Registerwechsel. Zentrales Tasteninstrument des 17. und 18. Jahrhunderts.',
+        examples: ['J.S. Bach: Wohltemperiertes Klavier', 'Scarlatti: Sonaten']
+      },
+      {
+        term: 'Dodekaphonie (Zwölftontechnik)', category: 'technik', categoryLabel: 'Satztechnik', epoch: 'Moderne',
+        definition: 'Von Arnold Schönberg um 1921 begründete Methode der Komposition mit zwölf nur aufeinander bezogenen Tönen.',
+        academicDetails: 'Kein Ton darf wiederholt werden, bevor alle 11 anderen erklungen sind. Vier Grundformen: Grundgestalt (O), Krebs (R), Umkehrung (I), Krebsumkehrung (RI).',
+        examples: ['Schönberg: Klaviersuite op. 25', 'Alban Berg: Violinkonzert', 'Webern: Symphonie op. 21']
+      },
+      {
+        term: 'Durchimitation', category: 'technik', categoryLabel: 'Satztechnik', epoch: 'Renaissance',
+        definition: 'Kompositionsprinzip der Vokalpolyphonie, bei dem jede Textzeile ein Motiv erhält, das nacheinander von allen Stimmen imitiert wird.',
+        academicDetails: 'Etabliert die Gleichberechtigung von Superius, Altus, Tenor und Bassus und löst die Vorherrschaft des starren Cantus firmus ab.',
+        examples: ['Josquin: "Ave Maria... virgo serena"', 'Palestrina: Missa Papae Marcelli']
+      },
+      {
+        term: 'Florentiner Camerata', category: 'kontext', categoryLabel: 'Historischer Kontext', epoch: 'Barock (um 1600)',
+        definition: 'Kreis von Gelehrten und Musikern um Bardi in Florenz, der die antike Tragödie wiederbeleben wollte.',
+        academicDetails: 'Führte zur Erfindung der Monodie (begleiteter Sologesang) und damit zur historischen Entstehung der Gattung Oper.',
+        examples: ['Jacopo Peri: Euridice (1600)', 'Claudio Monteverdi: L’Orfeo (1607)']
+      },
+      {
+        term: 'Fuge', category: 'form', categoryLabel: 'Musikalische Form', epoch: 'Barock',
+        definition: 'Die kunstvollste polyphone Form der Instrumental- und Vokalmusik, basierend auf der Durchführung eines Themas nach strengen Regeln.',
+        academicDetails: 'Exposition mit Dux (Thema auf Tonika) und Comes (Antwort auf Dominante), gefolgt von Zwischenspielen, Engführungen (Stretta) und Orgelpunkt.',
+        examples: ['J.S. Bach: Die Kunst der Fuge', 'Wohltemperiertes Klavier']
+      },
+      {
+        term: 'Gregorianischer Choral', category: 'form', categoryLabel: 'Musikalische Form', epoch: 'Mittelalter',
+        definition: 'Der einstimmige, unbegleitete, liturgische Gesang der römisch-katholischen Kirche in lateinischer Sprache.',
+        academicDetails: 'Bewegt sich in den 8 Kirchentonarten (Modi). Rhythmisch frei am lateinischen Text orientiert. Ausgangspunkt der europäischen Notenschrift.',
+        examples: ['Dies irae', 'Kyrie aus Missa de Angelis']
+      },
+      {
+        term: 'Hammerflügel (Fortepiano)', category: 'instrument', categoryLabel: 'Instrument', epoch: 'Wiener Klassik',
+        definition: 'Historisches Tasteninstrument mit Hammer-Mechanik (Cristofori ca. 1700), das stufenlose Lautstärken durch Tastenanschlag ermöglichte.',
+        academicDetails: 'Leichterer Holzrahmen und intimerer, obertonreicherer Klang als der moderne Konzertflügel. Standardinstrument von Mozart und Beethoven.',
+        examples: ['Mozart: Klavierkonzerte KV 466 & 488', 'Beethoven: Frühe Klaviersonaten']
+      },
+      {
+        term: 'Isorhythmie', category: 'technik', categoryLabel: 'Satztechnik', epoch: 'Mittelalter (Ars Nova)',
+        definition: 'Strukturprinzip des 14. Jahrhunderts, bei dem eine Rhythmusformel (Talea) und eine Tonhöhenfolge (Color) unabhängig wiederholt werden.',
+        academicDetails: 'Höchste mathematische Abstraktion der Musik des 14. Jahrhunderts, meisterhaft angewandt in den Motetten Guillaume de Machauts.',
+        examples: ['Machaut: Messe de Nostre Dame']
+      },
+      {
+        term: 'Klarinette', category: 'instrument', categoryLabel: 'Instrument', epoch: 'Wiener Klassik',
+        definition: 'Holzblasinstrument mit einfachem Rohrblatt, das in der Wiener Klassik fest in das Sinfonieorchester integriert wurde.',
+        academicDetails: 'Die Mannheimer Schule und Mozart (inspiriert von Anton Stadler) verhalfen ihr zum Durchbruch als ausdrucksstarkes Soloinstrument.',
+        examples: ['Mozart: Klarinettenkonzert A-Dur KV 622', 'Klarinettenquintett KV 581']
+      },
+      {
+        term: 'Leitmotiv', category: 'technik', categoryLabel: 'Satztechnik', epoch: 'Romantik',
+        definition: 'Ein musikalisches Motiv, das einer bestimmten Person, Idee oder Emotion zugeordnet ist und bei deren Erwähnung erklingt.',
+        academicDetails: 'Von Richard Wagner im Musikdrama perfektioniert, um die psychologischen Tiefenschichten der Handlung im Orchester sinfonisch zu verweben.',
+        examples: ['Wagner: Der Ring des Nibelungen', 'Berlioz: Idée fixe in Symphonie fantastique']
+      },
+      {
+        term: 'Madrigal', category: 'form', categoryLabel: 'Musikalische Form', epoch: 'Renaissance & Frühbarock',
+        definition: 'Die anspruchsvollste weltliche Gattung der Renaissance auf italienische Poesie (Petrarca, Tasso).',
+        academicDetails: 'Experimentierfeld für kühne Chromatik und plastische Textausdeutung (Madrigalismen wie Weinen, Seufzen, Himmel, Hölle).',
+        examples: ['Monteverdi: Madrigalbücher 4 & 5', 'Carlo Gesualdo: Madrigale']
+      },
+      {
+        term: 'Neumen', category: 'technik', categoryLabel: 'Satztechnik', epoch: 'Mittelalter',
+        definition: 'Die früheste grafische Notenschrift Europas zur Notation des gregorianischen Chorals.',
+        academicDetails: 'Zunächst linienlos (adiastematisch als Gedächtnisstütze), später durch Guido von Arezzo auf farbigen Terzlinien fixiert.',
+        examples: ['Handschriften aus St. Gallen (Codex 359)']
+      },
+      {
+        term: 'Organum', category: 'form', categoryLabel: 'Musikalische Form', epoch: 'Mittelalter',
+        definition: 'Die früheste überlieferte Form der europäischen Mehrstimmigkeit: Über einer Choralstimme liegt eine hinzugefügte Stimme.',
+        academicDetails: 'Vom Parallelorganum (9. Jh.) über Haltetonorganum bis zur Notre-Dame-Schule (Leonin, Perotin) mit bis zu 4 Stimmen.',
+        examples: ['Musica enchiriadis (ca. 850)', 'Perotin: Viderunt omnes (1198)']
+      },
+      {
+        term: 'Quintfallsequenz', category: 'technik', categoryLabel: 'Satztechnik', epoch: 'Barock & Klassik',
+        definition: 'Harmonische Kette, bei der die Akkord-Grundtöne um Quinten abwärts (oder Quarten aufwärts) fortschreiten.',
+        academicDetails: 'Das stärkste tonale Antriebsmodell zur Modulation und Spannungssteigerung im Barock (z.B. I - IV - VII - III - VI - II - V - I).',
+        examples: ['Vivaldi: Violinkonzerte', 'J.S. Bach: Cembalokonzerte']
+      },
+      {
+        term: 'Sonatenhauptsatzform', category: 'form', categoryLabel: 'Musikalische Form', epoch: 'Wiener Klassik & Romantik',
+        definition: 'Das zentrale Formmodell der klassischen Instrumentalmusik (Kopfsatz von Sinfonie, Sonate und Streichquartett).',
+        academicDetails: 'Dreiteilige Großform: Exposition (HT [T] -> Überleitung -> ST [D] -> Schlussgruppe) -> Durchführung (Modulation/Konflikt) -> Reprise (alle Themen in Tonika) -> Coda.',
+        examples: ['Beethoven: 5. Sinfonie, 1. Satz', 'Mozart: Jupiter-Sinfonie', 'Haydn: Londoner Sinfonien']
+      },
+      {
+        term: 'Tridentinisches Konzil', category: 'kontext', categoryLabel: 'Historischer Kontext', epoch: 'Renaissance (1545–1563)',
+        definition: 'Katholisches Reformkonzil der Gegenreformation, das maßgeblich über die Kirchenmusik verhandelte.',
+        academicDetails: 'Verlangte die Verbannung weltlicher Melodien und absolute Textverständlichkeit, mustergültig erfüllt von Palestrinas Missa Papae Marcelli.',
+        examples: ['Palestrina: Missa Papae Marcelli']
+      },
+      {
+        term: 'Tristan-Akkord', category: 'technik', categoryLabel: 'Satztechnik', epoch: 'Romantik',
+        definition: 'Der Vierklang F – H – D# – G# im 2. Takt des Vorspiels zu Wagners Tristan und Isolde.',
+        academicDetails: 'Seine harmonische Mehrdeutigkeit und die chromatische Weiterführung nach E7 leiteten die Auflösung der klassischen Dur-Moll-Tonalität ein.',
+        examples: ['Wagner: Vorspiel zu Tristan und Isolde (1859)']
+      },
+      {
+        term: 'Viola da Gamba', category: 'instrument', categoryLabel: 'Instrument', epoch: 'Renaissance & Barock',
+        definition: 'Sechssaitiges Streichinstrument mit Bünden, das zwischen den Beinen gehalten und im Untergriff gestrichen wird.',
+        academicDetails: 'Warmer, obertonreicher und resonanter Klang. Bedeutendes Soloinstrument des französischen Barock und im Gambenconsort.',
+        examples: ['Marin Marais: Pièces de viole', 'J.S. Bach: Johannes-Passion ("Es ist vollbracht")']
+      },
+      {
+        term: 'Zweite Wiener Schule', category: 'kontext', categoryLabel: 'Historischer Kontext', epoch: 'Moderne (20. Jh.)',
+        definition: 'Der Kreis um Arnold Schönberg und seine Schüler Alban Berg und Anton Webern in Wien.',
+        academicDetails: 'Vollzog die historische Emanzipation der Dissonanz: Übergang von der Spätromantik über freie Atonalität (1908) zur Dodekaphonie (1921).',
+        examples: ['Schönberg: Pierrot Lunaire', 'Berg: Wozzeck', 'Webern: Bagatellen']
+      }
+    ];
+
+    const EXAM_QUESTIONS = [
+      {
+        id: 'q1', epoch: 'Wiener Klassik', category: 'Formenlehre',
+        question: 'Welche tonale Disposition kennzeichnet die Reprise eines typischen Sonatenhauptsatzes in einer Dur-Tonart?',
+        options: [
+          'Hauptthema in der Dominante, Seitenthema in der Tonika',
+          'Hauptthema in der Tonika, Seitenthema in der Dominante',
+          'Sowohl Hauptthema als auch Seitenthema erklingen in der Tonika (Haupttonart)',
+          'Hauptthema in der Tonika, Seitenthema in der parallelen Molltonart'
+        ],
+        correctIndex: 2,
+        explanation: 'Im Sonatenhauptsatz steht in der Exposition das Seitenthema in der Dominante. In der Reprise wird dieser tonale Konflikt gelöst: Beide Themengruppen erklingen nun versöhnt in der Tonika.'
+      },
+      {
+        id: 'q2', epoch: 'Barock', category: 'Satztechnik',
+        question: 'Was unterscheidet bei einer barocken Fuge den "Comes" vom "Dux"?',
+        options: [
+          'Der Comes ist das Thema in der Umkehrung, der Dux in der Grundgestalt.',
+          'Der Dux ist der Themenvortrag auf der Tonika, der Comes die Beantwortung auf der Dominante (Oberquinte/Unterquarte).',
+          'Der Comes wird nur vom Basso Continuo gespielt, der Dux von den Oberstimmen.',
+          'Der Comes ist das Kontrasubjekt, der Dux das periodische Thema.'
+        ],
+        correctIndex: 1,
+        explanation: 'In der Fuge ist der Dux (Führer) das Thema auf der Tonika. Der Comes (Gefährte) ist die Beantwortung des Themas durch eine andere Stimme auf der Dominantstufe.'
+      },
+      {
+        id: 'q3', epoch: 'Romantik', category: 'Harmonielehre',
+        question: 'Welche Töne bilden den originalen "Tristan-Akkord" im 2. Takt des Vorspiels zu Wagners Tristan und Isolde?',
+        options: [
+          'F – H – D# – G#',
+          'C – E – G – B',
+          'D – F# – A – C#',
+          'G – H – D – F#'
+        ],
+        correctIndex: 0,
+        explanation: 'Der Tristan-Akkord besteht aus den Tönen F – H – D# – G#. Seine chromatische Sehnsuchtsauflösung nach E7 gilt als Fanal für die Auflösung der Dur-Moll-Tonalität.'
+      },
+      {
+        id: 'q4', epoch: 'Mittelalter', category: 'Musiktheorie',
+        question: 'Welche musiktheoretische Pioniertat wird dem Mönch Guido von Arezzo (ca. 992–1050) zugeschrieben?',
+        options: [
+          'Die Erfindung des Basso Continuo',
+          'Die Entwicklung der Solmisation (Ut-Re-Mi-Fa-Sol-La) und des Terzenliniensystems',
+          'Die Komposition der ersten 12-Ton-Reihe',
+          'Die Erfindung der Oper am Hof von Mantua'
+        ],
+        correctIndex: 1,
+        explanation: 'Guido von Arezzo revolutionierte die Notenschrift durch farbige Terzlinien mit Schlüsseln und erfand die Silbensolmisation anhand des Johannes-Hymnus.'
+      },
+      {
+        id: 'q5', epoch: 'Renaissance', category: 'Historischer Kontext',
+        question: 'Welches Konzil der Gegenreformation forderte Textverständlichkeit in der Kirchenmusik und prägte Palestrinas Stil?',
+        options: [
+          'Das Konzil von Trient (Tridentinum, 1545–1563)',
+          'Der Westfälische Friede (1648)',
+          'Das Konzil von Konstanz (1414–1418)',
+          'Der Augsburger Religionsfrieden (1555)'
+        ],
+        correctIndex: 0,
+        explanation: 'Das Tridentinische Konzil forderte eine Läuterung der Kirchenmusik: Verzicht auf weltliche Gassenhauer und absolute Textverständlichkeit, mustergültig in Palestrinas Missa Papae Marcelli.'
+      },
+      {
+        id: 'q6', epoch: 'Moderne', category: 'Satztechnik',
+        question: 'Welche vier Transformationen einer Zwölftonreihe bilden die Basis der Dodekaphonie nach Arnold Schönberg?',
+        options: [
+          'Exposition, Durchführung, Reprise, Coda',
+          'Grundgestalt (O), Krebs (R), Umkehrung (I), Krebsumkehrung (RI)',
+          'Dux, Comes, Stretta, Orgelpunkt',
+          'Major, Minor, Dorisch, Phrygisch'
+        ],
+        correctIndex: 1,
+        explanation: 'Aus der Grundgestalt entstehen durch Spiegelung an den Achsen drei Formen: der Krebs (rückwärts), die Umkehrung (Intervalle gespiegelt) und die Krebsumkehrung.'
+      },
+      {
+        id: 'q7', epoch: 'Barock', category: 'Gattungsgeschichte',
+        question: 'Welcher Florentiner Gelehrtenkreis gilt als Wegbereiter der Monodie und damit der Erfindung der Oper um 1600?',
+        options: [
+          'Die Académie Royale de Musique',
+          'Die Florentiner Camerata (um Giovanni de’ Bardi und Vincenzo Galilei)',
+          'Die Schola Cantorum in Rom',
+          'Der Leipziger Thomaskantorat-Kreis'
+        ],
+        correctIndex: 1,
+        explanation: 'Die Florentiner Camerata erstrebte die Wiederbelebung des antiken griechischen Dramas und entwickelte dafür den begleiteten Sologesang (Monodie).'
+      },
+      {
+        id: 'q8', epoch: 'Wiener Klassik', category: 'Formenlehre',
+        question: 'Welche Satzfolge etablierte Joseph Haydn im klassischen viersätzigen Sinfonie- und Streichquartettmodell?',
+        options: [
+          '1. Präludium – 2. Fuge – 3. Arie – 4. Choral',
+          '1. Schneller Satz (Sonatenform) – 2. Langsamer Satz – 3. Menuett/Scherzo – 4. Schnelles Finale (Rondo/Sonate)',
+          '1. Ouvertüre – 2. Courante – 3. Sarabande – 4. Gigue',
+          '1. Toccata – 2. Rezitativ – 3. Da-Capo-Arie – 4. Marsch'
+        ],
+        correctIndex: 1,
+        explanation: 'Das klassische 4-Satz-Schema: 1. Allegro (Sonatenhauptsatz), 2. Langsamer lyrischer Satz, 3. Tanzsatz (Menuett/Scherzo mit Trio), 4. Kehraus-Finale.'
+      }
+    ];
+
+    // ==========================================
+    // 3. HAUPT-KOMPONENTE (APP)
+    // ==========================================
+    function App() {
+      const [activeTab, setActiveTab] = useState('timeline');
+      const [playingAudioId, setPlayingAudioId] = useState(null);
+
+      // Quiz State
+      const [quizIndex, setQuizIndex] = useState(0);
+      const [selectedAnswers, setSelectedAnswers] = useState({});
+      const [quizCompleted, setQuizCompleted] = useState(false);
+      const [hasRevealedAnswer, setHasRevealedAnswer] = useState(false);
+
+      // Glossar State
+      const [searchQuery, setSearchQuery] = useState('');
+      const [glossaryCategory, setGlossaryCategory] = useState('all');
+      const [selectedTerm, setSelectedTerm] = useState(null);
+
+      // Klang- & Formlabor State
+      const [sonataStage, setSonataStage] = useState('expo');
+      const [twelveToneMode, setTwelveToneMode] = useState('original');
+
+      // Audio Trigger Helper
+      const handlePlayAudio = (audioId) => {
+        if (playingAudioId === audioId) {
+          audioSynth.stopAll();
+          setPlayingAudioId(null);
+          return;
+        }
+        setPlayingAudioId(audioId);
+        const onEnd = () => setPlayingAudioId(null);
+
+        switch (audioId) {
+          case 'gregorian': audioSynth.playGregorianChant(onEnd); break;
+          case 'baroque': audioSynth.playBaroqueContinuo(onEnd); break;
+          case 'classic': audioSynth.playClassicalSonata(onEnd); break;
+          case 'romantic': audioSynth.playRomanticTristan(onEnd); break;
+          case 'modern': audioSynth.playTwelveToneRow(twelveToneMode, onEnd); break;
+          default: audioSynth.stopAll(); setPlayingAudioId(null);
+        }
+      };
+
+      // Quiz Handlers
+      const currentQ = EXAM_QUESTIONS[quizIndex];
+      const isCorrect = selectedAnswers[currentQ?.id] === currentQ?.correctIndex;
+      const score = Object.keys(selectedAnswers).reduce((acc, qId) => {
+        const q = EXAM_QUESTIONS.find(item => item.id === qId);
+        return acc + (q && selectedAnswers[qId] === q.correctIndex ? 1 : 0);
+      }, 0);
+      const percentage = Math.round((score / EXAM_QUESTIONS.length) * 100);
+
+      const handleSelectOption = (idx) => {
+        if (hasRevealedAnswer) return;
+        setSelectedAnswers(prev => ({ ...prev, [currentQ.id]: idx }));
+        setHasRevealedAnswer(true);
+      };
+
+      const handleNextQuestion = () => {
+        if (quizIndex < EXAM_QUESTIONS.length - 1) {
+          setQuizIndex(prev => prev + 1);
+          setHasRevealedAnswer(false);
+        } else {
+          setQuizCompleted(true);
+        }
+      };
+
+      const handleResetQuiz = () => {
+        setQuizIndex(0);
+        setSelectedAnswers({});
+        setQuizCompleted(false);
+        setHasRevealedAnswer(false);
+      };
+
+      // Glossar Filter
+      const filteredTerms = useMemo(() => {
+        return GLOSSARY_TERMS.filter(item => {
+          const matchesCat = glossaryCategory === 'all' || item.category === glossaryCategory;
+          const q = searchQuery.toLowerCase().trim();
+          const matchesSearch = !q || item.term.toLowerCase().includes(q) || item.definition.toLowerCase().includes(q) || item.epoch.toLowerCase().includes(q);
+          return matchesCat && matchesSearch;
+        }).sort((a, b) => a.term.localeCompare(b.term, 'de'));
+      }, [searchQuery, glossaryCategory]);
+
+      return (
+        <div className="min-h-screen flex flex-col">
+          {/* Header & Navbar */}
+          <header className="sticky top-0 z-40 bg-stone-900/95 backdrop-blur-md border-b border-stone-800 shadow-md">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+              <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveTab('timeline')}>
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-600 to-amber-900 flex items-center justify-center font-serif text-2xl font-bold text-amber-100 shadow-inner">
+                  𝄞
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-serif text-lg font-bold text-amber-100">MusicaEuropa</span>
+                    <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800/60 hidden sm:inline-block">
+                      Hochschulportal
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-stone-400 hidden sm:block">Europäische Musikgeschichte & Klausurtrainer</p>
+                </div>
+              </div>
+
+              {/* Nav Tabs */}
+              <nav className="flex items-center gap-1 sm:gap-2">
+                {[
+                  { id: 'timeline', label: 'Zeitleiste' },
+                  { id: 'epochs', label: 'Epochen' },
+                  { id: 'glossary', label: 'Glossar' },
+                  { id: 'lab', label: 'Klanglabor' },
+                  { id: 'quiz', label: 'Selbsttest' }
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${
+                      activeTab === tab.id
+                        ? 'bg-amber-950/60 text-amber-200 border border-amber-600/70 shadow-sm'
+                        : 'text-stone-300 hover:text-stone-100 hover:bg-stone-800'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+
+                <button
+                  onClick={() => { audioSynth.stopAll(); setPlayingAudioId(null); }}
+                  title="Alle Hörbeispiele stoppen"
+                  className="ml-2 p-2 rounded-lg text-stone-400 hover:text-rose-400 hover:bg-stone-800 transition-colors"
+                >
+                  ⏹
+                </button>
+              </nav>
+            </div>
+          </header>
+
+          {/* Main Content Area */}
+          <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8">
+            
+            {/* ============================================================== */}
+            {/* TAB 1: INTERAKTIVE ZEITLEISTE                                  */}
+            {/* ============================================================== */}
+            {activeTab === 'timeline' && (
+              <div className="space-y-8 animate-in fade-in">
+                <div className="rounded-2xl bg-gradient-to-r from-stone-900 via-stone-850 to-stone-900 border border-stone-800 p-6 sm:p-8 shadow-xl">
+                  <span className="inline-block px-3 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-300 border border-amber-500/20 mb-3">
+                    Historische Gesamtschau
+                  </span>
+                  <h1 className="font-serif text-3xl sm:text-4xl font-bold text-stone-100">
+                    Interaktive Zeitleiste der europäischen Musikgeschichte
+                  </h1>
+                  <p className="mt-2 text-stone-300 text-sm sm:text-base leading-relaxed max-w-3xl">
+                    Die abendländische Musikgeschichte im Überblick: Wichtige Zäsuren von den mittelalterlichen Neumen über die polyphone Renaissance, die barocke Oper bis hin zur Wiener Klassik, Romantik und Moderne.
+                  </p>
+
+                  {/* Epochen-Buttons */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mt-6 pt-6 border-t border-stone-800">
+                    {EPOCHS.map((ep, idx) => (
+                      <button
+                        key={ep.id}
+                        onClick={() => {
+                          const el = document.getElementById(`epoch-card-${ep.id}`);
+                          if (el) el.scrollIntoView({ behavior: 'smooth' });
+                        }}
+                        className="p-3 rounded-xl border border-stone-800 bg-stone-900/80 hover:border-amber-500/60 hover:bg-stone-850 text-left transition-all"
+                      >
+                        <div className="text-[10px] font-mono text-stone-400">0{idx + 1} · {ep.period.replace('ca. ', '')}</div>
+                        <div className="font-serif text-sm font-bold text-stone-200 truncate mt-0.5">{ep.name}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Meilensteine Chronologie */}
+                <div className="bg-stone-900 border border-stone-800 rounded-2xl p-6 sm:p-8 shadow-xl space-y-6">
+                  <h2 className="font-serif text-2xl font-bold text-stone-100">Historische Meilensteine & Epochenbrüche</h2>
+                  <div className="space-y-3">
+                    {MILESTONES.map((m, i) => (
+                      <div key={i} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl bg-stone-950/60 border border-stone-800/80 hover:border-stone-700 transition-all gap-2">
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono text-xs font-bold px-2.5 py-1 rounded bg-amber-950/80 text-amber-300 border border-amber-800/60 shrink-0">
+                            {m.year}
+                          </span>
+                          <div>
+                            <div className="font-serif text-sm font-bold text-stone-200">{m.title}</div>
+                            <div className="text-xs text-stone-400 mt-0.5">{m.desc}</div>
+                          </div>
+                        </div>
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-stone-850 border border-stone-750 text-stone-400 shrink-0">
+                          {m.epoch}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ============================================================== */}
+            {/* TAB 2: EPOCHEN-KOMPENDIUM                                      */}
+            {/* ============================================================== */}
+            {activeTab === 'epochs' && (
+              <div className="space-y-8 animate-in fade-in">
+                <div className="rounded-2xl bg-gradient-to-r from-stone-900 to-stone-850 border border-stone-800 p-6 sm:p-8 shadow-xl">
+                  <span className="inline-block px-3 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-300 border border-amber-500/20 mb-3">
+                    Epochenkompendium
+                  </span>
+                  <h1 className="font-serif text-3xl font-bold text-stone-100">
+                    Die 6 Hauptepochen europäischer Musik
+                  </h1>
+                  <p className="mt-2 text-stone-300 text-sm leading-relaxed max-w-3xl">
+                    Stilmerkmale, theoriegeschichtlicher Hintergrund, Gattungen und Schlüsselfiguren mit direkt abspielbaren Synthesizer-Klangbeispielen.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {EPOCHS.map(ep => (
+                    <div id={`epoch-card-${ep.id}`} key={ep.id} className="p-6 rounded-2xl bg-stone-900 border border-stone-800 shadow-xl space-y-4">
+                      <div className="flex items-center justify-between pb-3 border-b border-stone-800">
+                        <div>
+                          <span className="text-[11px] font-mono text-amber-400">{ep.period}</span>
+                          <h2 className="font-serif text-2xl font-bold text-stone-100">{ep.name}</h2>
+                          <div className="text-xs text-amber-300/80 italic font-serif mt-0.5">{ep.tagline}</div>
+                        </div>
+                        <button
+                          onClick={() => handlePlayAudio(ep.audioId)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5 ${
+                            playingAudioId === ep.audioId
+                              ? 'bg-amber-600 text-stone-950 animate-pulse'
+                              : 'bg-stone-800 hover:bg-stone-750 text-amber-300 border border-amber-600/30'
+                          }`}
+                        >
+                          <span>{playingAudioId === ep.audioId ? '⏹ Stopp' : '▶ Hörprobe'}</span>
+                        </button>
+                      </div>
+
+                      <div>
+                        <div className="text-[10px] uppercase font-bold text-stone-400 mb-1">Geistiger Hintergrund:</div>
+                        <p className="text-xs text-stone-300 leading-relaxed bg-stone-950/50 p-3 rounded-xl border border-stone-800/60">
+                          {ep.philosophicalContext}
+                        </p>
+                      </div>
+
+                      <div>
+                        <div className="text-[10px] uppercase font-bold text-amber-400 mb-1.5">Wesentliche Stilmerkmale:</div>
+                        <ul className="text-xs text-stone-300 space-y-1 list-disc list-inside">
+                          {ep.coreCharacteristics.map((c, i) => (
+                            <li key={i}>{c}</li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div>
+                        <div className="text-[10px] uppercase font-bold text-stone-400 mb-1.5">Gattungen & Formen:</div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {ep.musicalForms.map((f, i) => (
+                            <span key={i} className="text-[11px] px-2 py-0.5 rounded bg-stone-850 border border-stone-800 text-stone-300">
+                              {f}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-stone-800/80">
+                        <div className="text-[10px] uppercase font-bold text-stone-400 mb-1">Schlüsselkomponisten:</div>
+                        <div className="text-xs text-stone-300 font-medium">{ep.keyComposers.join(' · ')}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ============================================================== */}
+            {/* TAB 3: DURCHSUCHBARES FACHGLOSSAR                              */}
+            {/* ============================================================== */}
+            {activeTab === 'glossary' && (
+              <div className="space-y-8 animate-in fade-in">
+                <div className="rounded-2xl bg-gradient-to-r from-stone-900 to-stone-850 border border-stone-800 p-6 sm:p-8 shadow-xl">
+                  <span className="inline-block px-3 py-1 rounded-full text-xs font-medium bg-blue-500/10 text-blue-300 border border-blue-500/20 mb-3">
+                    Fachlexikon & Terminologie
+                  </span>
+                  <h1 className="font-serif text-3xl font-bold text-stone-100">
+                    Glossar der europäischen Musikgeschichte
+                  </h1>
+                  <p className="mt-2 text-stone-300 text-sm leading-relaxed max-w-3xl">
+                    Alphabetisch sortierte und durchsuchbare Definitionen zu musikalischen Formen, Instrumenten, Satztechniken und historischen Kontexten.
+                  </p>
+
+                  {/* Suchfeld & Filterchips */}
+                  <div className="mt-6 pt-6 border-t border-stone-800 space-y-4">
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      placeholder="Begriff, Epoche oder Satztechnik suchen (z.B. Sonatenform, Basso Continuo, Cembalo)..."
+                      className="w-full px-4 py-3 rounded-xl bg-stone-950 border border-stone-800 text-stone-100 placeholder-stone-500 text-sm focus:outline-none focus:border-amber-500"
+                    />
+
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { id: 'all', label: 'Alle Begriffe' },
+                        { id: 'form', label: 'Musikalische Formen' },
+                        { id: 'instrument', label: 'Instrumente' },
+                        { id: 'technik', label: 'Satztechniken' },
+                        { id: 'kontext', label: 'Historischer Kontext' }
+                      ].map(cat => (
+                        <button
+                          key={cat.id}
+                          onClick={() => setGlossaryCategory(cat.id)}
+                          className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                            glossaryCategory === cat.id
+                              ? 'bg-amber-900/60 text-amber-200 border border-amber-600/70'
+                              : 'bg-stone-850 text-stone-300 border border-stone-800 hover:bg-stone-800'
+                          }`}
+                        >
+                          {cat.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Glossar-Liste & Detailansicht */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Liste links */}
+                  <div className="lg:col-span-2 space-y-3">
+                    <div className="text-xs text-stone-400 px-1">{filteredTerms.length} Begriffe gefunden</div>
+                    {filteredTerms.map(term => {
+                      const isSelected = selectedTerm?.term === term.term;
+                      return (
+                        <div
+                          key={term.term}
+                          onClick={() => setSelectedTerm(term)}
+                          className={`p-4 rounded-xl border cursor-pointer transition-all ${
+                            isSelected
+                              ? 'bg-amber-950/40 border-amber-600 ring-1 ring-amber-500 shadow-md'
+                              : 'bg-stone-900 border-stone-800 hover:border-stone-700 hover:bg-stone-850'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-serif text-base font-bold text-stone-100">{term.term}</h3>
+                                <span className="text-[10px] px-2 py-0.5 rounded bg-stone-800 text-stone-300 border border-stone-750">
+                                  {term.epoch}
+                                </span>
+                              </div>
+                              <p className="mt-1 text-xs text-stone-300 line-clamp-2 leading-relaxed">{term.definition}</p>
+                            </div>
+                            <span className="text-[10px] px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800/40 shrink-0">
+                              {term.categoryLabel}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Detailansicht rechts */}
+                  <div>
+                    {selectedTerm ? (
+                      <div className="sticky top-24 bg-stone-900 border border-stone-800 rounded-2xl p-6 shadow-xl space-y-4">
+                        <span className="text-[10px] font-mono text-amber-400 uppercase tracking-wider">{selectedTerm.categoryLabel}</span>
+                        <h2 className="font-serif text-2xl font-bold text-stone-100">{selectedTerm.term}</h2>
+                        <div className="text-xs text-stone-400 font-mono">Epoche: {selectedTerm.epoch}</div>
+
+                        <div className="pt-2">
+                          <div className="text-[10px] uppercase font-bold text-stone-400 mb-1">Definition:</div>
+                          <p className="text-xs text-stone-200 bg-stone-950 p-3 rounded-xl border border-stone-800 leading-relaxed">
+                            {selectedTerm.definition}
+                          </p>
+                        </div>
+
+                        <div>
+                          <div className="text-[10px] uppercase font-bold text-amber-400 mb-1">Musikwissenschaftliche Tiefe:</div>
+                          <p className="text-xs text-stone-300 leading-relaxed bg-stone-850 p-3 rounded-xl border border-stone-800">
+                            {selectedTerm.academicDetails}
+                          </p>
+                        </div>
+
+                        <div>
+                          <div className="text-[10px] uppercase font-bold text-stone-400 mb-1">Werkauszüge & Beispiele:</div>
+                          <ul className="text-xs text-stone-300 space-y-1 list-disc list-inside">
+                            {selectedTerm.examples.map((ex, i) => (
+                              <li key={i}>{ex}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-8 rounded-2xl bg-stone-900 border border-stone-800 text-center text-stone-400">
+                        <div className="text-2xl mb-2">📖</div>
+                        <h4 className="font-serif font-bold text-stone-200 text-sm">Begriff auswählen</h4>
+                        <p className="text-xs text-stone-400 mt-1">Klicke links auf einen Eintrag für die vollständige wissenschaftliche Definition und Werkauszüge.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ============================================================== */}
+            {/* TAB 4: KLANG- & FORMLABOR                                      */}
+            {/* ============================================================== */}
+            {activeTab === 'lab' && (
+              <div className="space-y-8 animate-in fade-in">
+                <div className="rounded-2xl bg-gradient-to-r from-stone-900 to-stone-850 border border-stone-800 p-6 sm:p-8 shadow-xl">
+                  <span className="inline-block px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 mb-3">
+                    Akustische & Analytische Praxis
+                  </span>
+                  <h1 className="font-serif text-3xl font-bold text-stone-100">
+                    Klang- & Formlabor
+                  </h1>
+                  <p className="mt-2 text-stone-300 text-sm leading-relaxed max-w-3xl">
+                    Erlebe die architektonischen Formen der Musikgeschichte: Höre stilbildende Kadenzen, analysiere den Aufbau der Sonatenhauptsatzform und berechne die Permutationen einer Zwölftonreihe.
+                  </p>
+                </div>
+
+                {/* Hörbeispiel-Synthesizer Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {[
+                    { id: 'gregorian', title: 'Gregorianischer Choral', epoch: 'Mittelalter', desc: 'Dorische Kirchentonart mit Kirchenhall-Resonanz.' },
+                    { id: 'baroque', title: 'Quintfallsequenz & Continuo', epoch: 'Barock', desc: 'Cembalo-Timbre über Cello-Bassfundament.' },
+                    { id: 'classic', title: 'Klassisches Sonatenthema', epoch: 'Wiener Klassik', desc: 'Mozart-Stil (KV 545): Periodischer 8-Takt-Bau mit Alberti-Bass.' },
+                    { id: 'romantic', title: 'Der Tristan-Akkord', epoch: 'Romantik', desc: 'Wagners F-H-D#-G# mit chromatischer Seufzerauflösung nach E7.' },
+                    { id: 'modern', title: 'Zwölftonreihe (Dodekaphonie)', epoch: 'Moderne', desc: 'Schönbergs Methode: 12 Halbtöne ohne tonales Zentrum.' }
+                  ].map(s => (
+                    <div key={s.id} className="p-5 rounded-2xl bg-stone-900 border border-stone-800 shadow-lg space-y-3">
+                      <div className="flex items-center justify-between text-xs text-stone-400">
+                        <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-stone-800">{s.epoch}</span>
+                        {playingAudioId === s.id && <span className="text-emerald-400 text-[11px] animate-pulse">Aktiv</span>}
+                      </div>
+                      <h3 className="font-serif text-lg font-bold text-stone-100">{s.title}</h3>
+                      <p className="text-xs text-stone-400">{s.desc}</p>
+                      <button
+                        onClick={() => handlePlayAudio(s.id)}
+                        className={`w-full py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5 ${
+                          playingAudioId === s.id
+                            ? 'bg-rose-600 text-white'
+                            : 'bg-stone-800 hover:bg-stone-750 text-emerald-300 border border-emerald-500/30'
+                        }`}
+                      >
+                        <span>{playingAudioId === s.id ? '⏹ Stopp' : '▶ Abspielen'}</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Sonatenhauptsatzform Visualizer */}
+                <div className="p-6 rounded-2xl bg-stone-900 border border-stone-800 shadow-xl space-y-6">
+                  <div>
+                    <span className="text-xs uppercase font-mono font-bold text-rose-400">Formenlehre-Labor</span>
+                    <h2 className="font-serif text-2xl font-bold text-stone-100 mt-1">Architektur der Sonatenhauptsatzform</h2>
+                    <p className="text-xs text-stone-300 mt-1">Das zentrale Formmodell der Wiener Klassik: Klicke auf die Abschnitte für die werkanalytische Erklärung.</p>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[
+                      { id: 'expo', name: '1. Exposition', sub: 'Konflikt-Etablierung' },
+                      { id: 'durch', name: '2. Durchführung', sub: 'Thematischer Streit' },
+                      { id: 'rep', name: '3. Reprise', sub: 'Tonale Versöhnung' },
+                      { id: 'coda', name: '4. Coda', sub: 'Schluss-Bekräftigung' }
+                    ].map(st => (
+                      <button
+                        key={st.id}
+                        onClick={() => setSonataStage(st.id)}
+                        className={`p-3 rounded-xl border text-left transition-all ${
+                          sonataStage === st.id
+                            ? 'bg-rose-950/60 border-rose-500 text-rose-200 ring-1 ring-rose-500'
+                            : 'bg-stone-850 border-stone-800 text-stone-400 hover:text-stone-200'
+                        }`}
+                      >
+                        <div className="font-serif text-sm font-bold">{st.name}</div>
+                        <div className="text-[10px] text-stone-500 mt-0.5">{st.sub}</div>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="p-5 rounded-xl bg-stone-950 border border-stone-800 text-xs sm:text-sm text-stone-300 leading-relaxed">
+                    {sonataStage === 'expo' && (
+                      <div>
+                        <strong className="text-rose-400 block mb-1">Exposition:</strong>
+                        Hauptthema in der <strong>Tonika (T)</strong> -> modulierende Überleitung -> lyrisches Seitenthema in der <strong>Dominante (D)</strong> -> bestätigende Schlussgruppe. Die Exposition wird in der Klassik meist wörtlich wiederholt.
+                      </div>
+                    )}
+                    {sonataStage === 'durch' && (
+                      <div>
+                        <strong className="text-amber-400 block mb-1">Durchführung:</strong>
+                        Höchste harmonische Instabilität. Motive der Themen werden zerlegt, sequenziert, kontrapunktisch enggeführt und durch entfernte Tonarten gejagt, bis ein Orgelpunkt auf der Dominante die Rückkehr zur Tonika vorbereitet.
+                      </div>
+                    )}
+                    {sonataStage === 'rep' && (
+                      <div>
+                        <strong className="text-emerald-400 block mb-1">Reprise (Klausur-Kernregel):</strong>
+                        Wiederkehr aller Teile der Exposition. Der fundamentale Unterschied: Das Seitenthema erklingt <em>NICHT</em> mehr in der Dominante, sondern steht nun versöhnt in der <strong>Tonika (Haupttonart)</strong>!
+                      </div>
+                    )}
+                    {sonataStage === 'coda' && (
+                      <div>
+                        <strong className="text-indigo-400 block mb-1">Coda:</strong>
+                        Feierlicher Epilog. Von Beethoven oft zu einer monumentalen "zweiten Durchführung" gesteigert (z.B. in der Eroica oder 5. Sinfonie).
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Zwölftonmatrix */}
+                <div className="p-6 rounded-2xl bg-stone-900 border border-stone-800 shadow-xl space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <span className="text-xs uppercase font-mono font-bold text-cyan-400">Dodekaphonie-Labor</span>
+                      <h2 className="font-serif text-xl font-bold text-stone-100">Schönbergs Zwölftonreihen-Rechner</h2>
+                    </div>
+                    <button
+                      onClick={() => handlePlayAudio('modern')}
+                      className="px-4 py-2 rounded-xl bg-cyan-900/60 hover:bg-cyan-900 text-cyan-200 border border-cyan-600/40 text-xs font-bold"
+                    >
+                      ▶ Aktive Reihe abspielen
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[
+                      { id: 'original', name: 'Grundgestalt (O)' },
+                      { id: 'retrograde', name: 'Krebs (R)' },
+                      { id: 'inversion', name: 'Umkehrung (I)' },
+                      { id: 'retrogradeInversion', name: 'Krebsumkehrung (RI)' }
+                    ].map(m => (
+                      <button
+                        key={m.id}
+                        onClick={() => setTwelveToneMode(m.id)}
+                        className={`p-2.5 rounded-lg border text-xs font-bold ${
+                          twelveToneMode === m.id
+                            ? 'bg-cyan-950 border-cyan-500 text-cyan-200'
+                            : 'bg-stone-850 border-stone-800 text-stone-400'
+                        }`}
+                      >
+                        {m.name}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-6 sm:grid-cols-12 gap-1 text-center font-mono text-xs">
+                    {(twelveToneMode === 'original'
+                      ? ['C', 'C#', 'E', 'D#', 'G', 'F#', 'F', 'A', 'Ab', 'Bb', 'B', 'D']
+                      : twelveToneMode === 'retrograde'
+                      ? ['D', 'B', 'Bb', 'Ab', 'A', 'F', 'F#', 'G', 'D#', 'E', 'C#', 'C']
+                      : twelveToneMode === 'inversion'
+                      ? ['C', 'B', 'Ab', 'A', 'F', 'F#', 'G', 'Eb', 'E', 'D', 'C#', 'Bb']
+                      : ['Bb', 'C#', 'D', 'E', 'Eb', 'G', 'F#', 'F', 'A', 'Ab', 'B', 'C']
+                    ).map((note, idx) => (
+                      <div key={idx} className="p-2 bg-stone-950 border border-stone-800 rounded text-cyan-300 font-bold">
+                        <div className="text-[9px] text-stone-500">{idx + 1}</div>
+                        {note}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ============================================================== */}
+            {/* TAB 5: SELBSTTEST & PRÜFUNGS-QUIZ MIT ERGEBNISÜBERSICHT        */}
+            {/* ============================================================== */}
+            {activeTab === 'quiz' && (
+              <div className="space-y-8 animate-in fade-in">
+                {!quizCompleted ? (
+                  <div className="bg-stone-900 border border-stone-800 rounded-2xl p-6 sm:p-8 shadow-xl space-y-6">
+                    {/* Header & Progress */}
+                    <div>
+                      <div className="flex items-center justify-between text-xs text-stone-400 mb-2">
+                        <span>Frage {quizIndex + 1} von {EXAM_QUESTIONS.length}</span>
+                        <span>Aktueller Punktestand: {score}</span>
+                      </div>
+                      <div className="w-full h-2 rounded-full bg-stone-800 overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-amber-600 to-amber-400 transition-all duration-300"
+                          style={{ width: `${((quizIndex + 1) / EXAM_QUESTIONS.length) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800/40">
+                        {currentQ.category}
+                      </span>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-stone-800 text-stone-300">
+                        Epoche: {currentQ.epoch}
+                      </span>
+                    </div>
+
+                    {/* Frage */}
+                    <h3 className="font-serif text-xl sm:text-2xl font-bold text-stone-100 leading-snug">
+                      {currentQ.question}
+                    </h3>
+
+                    {/* Antwort-Optionen */}
+                    <div className="grid grid-cols-1 gap-3 pt-2">
+                      {currentQ.options.map((opt, idx) => {
+                        const isChosen = selectedAnswers[currentQ.id] === idx;
+                        const isAnswerCorrect = idx === currentQ.correctIndex;
+
+                        let style = 'bg-stone-850 border-stone-800 hover:border-stone-700 text-stone-200';
+                        if (hasRevealedAnswer) {
+                          if (isAnswerCorrect) style = 'bg-emerald-950/60 border-emerald-500 text-emerald-100 ring-1 ring-emerald-500';
+                          else if (isChosen && !isAnswerCorrect) style = 'bg-rose-950/60 border-rose-500 text-rose-100 ring-1 ring-rose-500';
+                          else style = 'opacity-40 bg-stone-900 border-stone-850 text-stone-500';
+                        }
+
+                        return (
+                          <button
+                            key={idx}
+                            disabled={hasRevealedAnswer}
+                            onClick={() => handleSelectOption(idx)}
+                            className={`p-4 rounded-xl border text-left flex items-start gap-3 transition-all ${style}`}
+                          >
+                            <span className="w-6 h-6 rounded-lg bg-stone-800 border border-stone-700 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                              {String.fromCharCode(65 + idx)}
+                            </span>
+                            <span className="text-sm font-medium leading-relaxed">{opt}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Erklärung nach Klick */}
+                    {hasRevealedAnswer && (
+                      <div className="p-4 rounded-xl bg-stone-950 border border-stone-800 space-y-3">
+                        <div className="text-xs font-bold flex items-center gap-2">
+                          {isCorrect ? (
+                            <span className="text-emerald-400">✓ Richtig beantwortet!</span>
+                          ) : (
+                            <span className="text-rose-400">✗ Leider nicht korrekt.</span>
+                          )}
+                        </div>
+                        <p className="text-xs sm:text-sm text-stone-300 leading-relaxed">{currentQ.explanation}</p>
+                        <div className="pt-2 flex justify-end">
+                          <button
+                            onClick={handleNextQuestion}
+                            className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-stone-950 font-bold text-xs sm:text-sm shadow-md transition-all"
+                          >
+                            {quizIndex < EXAM_QUESTIONS.length - 1 ? 'Nächste Frage ▶' : 'Zur Ergebnisübersicht ▶'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* ================= ERGEBNISÜBERSICHT ================= */
+                  <div className="bg-stone-900 border border-stone-800 rounded-2xl p-6 sm:p-8 shadow-xl space-y-8 animate-in fade-in">
+                    <div className="text-center max-w-lg mx-auto space-y-4">
+                      <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-3xl">
+                        🎓
+                      </div>
+                      <h2 className="font-serif text-3xl font-bold text-stone-100">Ergebnisübersicht deines Selbsttests</h2>
+                      <p className="text-xs text-stone-400">Klausur: Europäische Musikgeschichte (Hochschulniveau)</p>
+
+                      <div className="p-6 rounded-2xl bg-stone-950 border border-stone-800 flex items-center justify-around">
+                        <div>
+                          <div className="text-3xl font-serif font-bold text-amber-300">{score} / {EXAM_QUESTIONS.length}</div>
+                          <div className="text-xs text-stone-400">Punkte</div>
+                        </div>
+                        <div className="h-10 w-px bg-stone-800" />
+                        <div>
+                          <div className="text-3xl font-serif font-bold text-stone-100">{percentage}%</div>
+                          <div className="text-xs text-stone-400">Erreicht</div>
+                        </div>
+                        <div className="h-10 w-px bg-stone-800" />
+                        <div>
+                          <div className="text-sm font-bold text-emerald-400">
+                            {percentage >= 85 ? 'Summa cum laude' : percentage >= 70 ? 'Sehr gut' : percentage >= 50 ? 'Bestanden' : 'Wiederholungsbedarf'}
+                          </div>
+                          <div className="text-xs text-stone-400">Klausururteil</div>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={handleResetQuiz}
+                        className="px-6 py-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-stone-950 font-bold text-sm shadow-lg transition-all"
+                      >
+                        Quiz wiederholen
+                      </button>
+                    </div>
+
+                    {/* Frage-für-Frage-Auswertung */}
+                    <div className="pt-6 border-t border-stone-800 space-y-3">
+                      <h4 className="font-serif text-lg font-bold text-stone-200">Detaillierte Analyse aller Aufgaben:</h4>
+                      {EXAM_QUESTIONS.map((q, idx) => {
+                        const userChoice = selectedAnswers[q.id];
+                        const qSuccess = userChoice === q.correctIndex;
+                        return (
+                          <div key={q.id} className={`p-4 rounded-xl border ${qSuccess ? 'bg-stone-950 border-stone-800' : 'bg-rose-950/20 border-rose-900/40'}`}>
+                            <div className="font-serif text-sm font-bold text-stone-200">
+                              {idx + 1}. {q.question} {qSuccess ? '✅' : '❌'}
+                            </div>
+                            <div className="text-xs text-stone-400 mt-1">
+                              Deine Antwort: <span className={qSuccess ? 'text-emerald-300 font-bold' : 'text-rose-300 font-bold'}>{q.options[userChoice] || 'Keine'}</span>
+                            </div>
+                            {!qSuccess && (
+                              <div className="text-xs text-emerald-400 mt-0.5">
+                                Richtige Lösung: <span className="font-bold">{q.options[q.correctIndex]}</span>
+                              </div>
+                            )}
+                            <p className="text-xs text-stone-300 mt-2 leading-relaxed">{q.explanation}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </main>
+
+          {/* Footer */}
+          <footer className="border-t border-stone-800 bg-stone-900/80 py-6 text-xs text-stone-400 mt-12">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <span className="font-serif font-bold text-stone-200">MusicaEuropa</span>
+                <span>·</span>
+                <span>Europäische Musikgeschichte für Studierende</span>
+              </div>
+              <div>Web Audio API Synthese · Eigenständige HTML-Datei</div>
+            </div>
+          </footer>
+        </div>
+      );
+    }
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
